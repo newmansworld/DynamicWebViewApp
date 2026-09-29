@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#09090b">
+  <title>AI Swarm Shell</title>
+  <style>
+    :root{color-scheme:dark;--bg:#09090b;--panel:#18181b;--card:#202024;--border:#27272a;--muted:#a1a1aa;--text:#f4f4f5;--brand:#2563eb;--good:#10b981}
+    :root.light{color-scheme:light;--bg:#f8fafc;--panel:#fff;--card:#f1f5f9;--border:#e2e8f0;--muted:#64748b;--text:#18181b;--brand:#2563eb}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,sans-serif}
+    button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);padding:.55rem .75rem}button.primary{background:var(--brand);border-color:var(--brand);color:#fff}button:disabled{opacity:.5;cursor:not-allowed}
+    .app{height:100%;display:flex;flex-direction:column}.topbar{height:56px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--panel)}.url{flex:1;max-width:640px;margin:auto}.url input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text)}
+    main{flex:1;min-height:0}.view{height:100%;display:flex;flex-direction:column}.hidden{display:none!important}.messages{flex:1;overflow:auto;padding:20px;max-width:850px;width:100%;margin:auto}.status,.bubble{border:1px solid var(--border);background:var(--panel);border-radius:12px;padding:12px;margin-bottom:12px}.status{color:var(--muted);font-size:12px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:7px}.dot.good{background:var(--good)}.message{display:flex;margin:10px 0}.message.user{justify-content:flex-end}.bubble{max-width:90%;white-space:pre-wrap;line-height:1.45}.user .bubble{background:var(--brand);border-color:var(--brand);color:#fff}.composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--panel)}.composer input{flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--text)}
+    .drawer{position:fixed;z-index:3;inset:0 auto 0 0;width:min(340px,86vw);padding:16px;background:var(--panel);border-right:1px solid var(--border);transform:translateX(-105%);transition:transform .2s;box-shadow:8px 0 30px #0008}.drawer.open{transform:none}.backdrop{position:fixed;z-index:2;inset:0;background:#0008}.drawer h2{margin:4px 0 20px}.drawer nav{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.drawer section{margin-top:24px}.drawer label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}.drawer select{width:100%;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px}
+    .editor{display:grid;grid-template-columns:1fr 1fr;height:100%;min-height:0}.editor textarea,.editor iframe{width:100%;height:100%;min-height:0;border:0;border-right:1px solid var(--border);background:var(--panel);color:var(--text);padding:14px;resize:none}.editor iframe{padding:0;background:#fff}.editorbar{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border)}#terminal{flex:1;overflow:auto;padding:12px;background:#000;color:#10b981;font:13px monospace;white-space:pre-wrap}.term-input{display:flex;background:#000;padding:8px}.term-input input{flex:1;background:#000;color:#10b981;border:0;outline:0;font:13px monospace}
+    @media(max-width:700px){.editor{grid-template-columns:1fr;grid-template-rows:1fr 1fr}.editor textarea{border-right:0;border-bottom:1px solid var(--border)}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar"><button id="menu" aria-label="Open menu">☰</button><div class="url"><input id="url" value="swarm://shell" aria-label="Current view"></div><button id="theme" aria-label="Toggle theme">☼</button></header>
+  <aside id="drawer" class="drawer"><button id="close">✕</button><h2>⚡ Swarm Hub</h2><nav><button data-view="shell">Shell</button><button data-view="sandbox">Sandbox</button><button data-view="terminal">Terminal</button></nav><section><label for="apiKey">Gemini API key (optional)</label><input id="apiKey" type="password" autocomplete="off" style="width:100%;padding:8px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px"><button id="saveKey" class="primary" style="margin-top:8px">Save key</button></section></aside><div id="backdrop" class="backdrop hidden"></div>
+  <main>
+    <section id="shell" class="view"><div id="messages" class="messages"><div class="status"><span id="dot" class="dot"></span><span id="status">Native AI bridge ready. Enter a prompt.</span></div></div><form id="composer" class="composer"><input id="prompt" placeholder="Ask the local model or generate sandbox code…" autocomplete="off"><button class="primary" id="send">Send</button></form></section>
+    <section id="sandbox" class="view hidden"><div class="editorbar"><strong>iframe.html</strong><button id="run" class="primary">▶ Run code</button></div><div class="editor"><textarea id="code" spellcheck="false"><!doctype html><html><body style="font-family:system-ui;padding:2rem"><h2>Android Embedded Sandbox</h2><p>Paste generated HTML here and run it.</p></body></html></textarea><iframe id="preview" sandbox="allow-scripts allow-modals" title="Sandbox preview"></iframe></div></section>
+    <section id="terminal" class="view hidden"><pre id="output">[SwarmOS] Connecting to native PTY…\n</pre><form id="termForm" class="term-input"><span>$&nbsp;</span><input id="termInput" autocomplete="off" aria-label="Terminal input"></form></section>
+  </main>
+</div>
+<script>
+(() => {
+  const $=id=>document.getElementById(id), views=['shell','sandbox','terminal']; let socket;
+  const drawer=$('drawer'), backdrop=$('backdrop');
+  function openMenu(){drawer.classList.add('open');backdrop.classList.remove('hidden')} function closeMenu(){drawer.classList.remove('open');backdrop.classList.add('hidden')}
+  $('menu').onclick=openMenu;$('close').onclick=closeMenu;backdrop.onclick=closeMenu;
+  function switchView(name){views.forEach(v=>$(v).classList.toggle('hidden',v!==name));$('url').value='swarm://'+name;closeMenu();if(name==='terminal') connectTerminal()}
+  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+  $('theme').onclick=()=>{document.documentElement.classList.toggle('light');localStorage.setItem('theme',document.documentElement.classList.contains('light')?'light':'dark')};if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light');
+  $('run').onclick=()=>{$('preview').srcdoc=$('code').value};$('run').click();
+  function add(text,role){const row=document.createElement('div');row.className='message '+role;const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;row.appendChild(bubble);$('messages').appendChild(row);$('messages').scrollTop=$('messages').scrollHeight}
+  $('composer').onsubmit=e=>{e.preventDefault();const text=$('prompt').value.trim();if(!text)return;$('prompt').value='';add(text,'user');$('send').disabled=true;$('status').textContent='Running native AI…';$('dot').classList.remove('good');
+    if(window.NativeAI){window.NativeAI.processPromptAsync(text,'window.onNativeAIResult')}else add('Native AI bridge is unavailable.','assistant')};
+  window.onNativeAIResult=json=>{try{const result=JSON.parse(json);add((result.output||result.error||'No response')+'\n\nRoute: '+(result.route||'unknown'),'assistant');$('status').textContent='Native AI bridge ready.'}catch(e){add(json,'assistant')}finally{$('send').disabled=false;$('dot').classList.add('good')}};
+  $('saveKey').onclick=()=>{if(window.NativeBridge){window.NativeBridge.setApiKey($('apiKey').value);$('apiKey').value='';$('status').textContent='API key saved locally.'}};
+  function connectTerminal(){if(socket&&socket.readyState<2)return;const out=$('output');socket=new WebSocket('ws://127.0.0.1:8080/shell');socket.onopen=()=>out.textContent+='[connected]\n';socket.onmessage=e=>{out.textContent+=e.data;out.scrollTop=out.scrollHeight};socket.onclose=()=>out.textContent+='\n[disconnected]\n';socket.onerror=()=>out.textContent+='[connection error]\n'}
+  $('termForm').onsubmit=e=>{e.preventDefault();const value=$('termInput').value+'\n';$('termInput').value='';if(socket&&socket.readyState===1)socket.send(value);else $('output').textContent+='[not connected]\n'};
+})();
+</script>
+</body>
+</html>

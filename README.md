@@ -1,69 +1,24 @@
 # DynamicWebViewApp
 
-Android app featuring:
-- **Local AI Inference**: Embedded llama.cpp with SmolLM2-135M GGUF model
-- **WebSocket PTY Shell**: Live terminal access via HTTP + WebSocket on `localhost:8080`
-- **Cloud Fallback**: Gemini 2.0 Flash API integration with offline-first routing
-- **WebView + CDP**: Chrome DevTools Protocol debugging, WebGPU/IndexedDB origin isolation
-- **NDK + JNI**: C++ llama.cpp bindings for fast on-device inference
+Production-oriented Android shell with a packaged local UI, loopback HTTP/WebSocket server, optional Gemini fallback, and JNI llama.cpp inference.
 
-## Build
+## Build prerequisites
 
-Prerequisites:
-- Java 17 (OpenJDK)
-- Android SDK 34
-- NDK 25.2.9519653
-- Gradle 8.0+
+- Java 17
+- Android SDK platform 34
+- Android NDK 25.2.9519653
+- CMake 3.22.1
+- llama.cpp source and a `model.gguf` asset supplied by the build process
 
-```bash
-./gradlew assembleDebug
-```
+Build with `./gradlew assembleDebug` after setting `sdk.dir` in `local.properties`. The UI is packaged at `app/src/main/assets/index.html`; it intentionally has no CDN dependency so it can load offline inside the APK.
 
-The build script will:
-1. Resolve Java 17 environment
-2. Download Android command-line tools and NDK
-3. Fetch llama.cpp (commit b3568) and SmolLM2 GGUF model
-4. Compile C++ bindings and generate APK
+## Runtime architecture
 
-## Project Structure
+- `MainActivity` starts the loopback server at `127.0.0.1:8080` and loads the packaged UI.
+- `LocalWSServer` serves only APK assets and provides the WebSocket shell endpoint.
+- The UI calls `NativeAI.processPromptAsync` for native inference/cloud fallback and uses WebSocket for terminal input.
+- WebView debugging is enabled only in debug builds; runtime permission requests are denied by default.
 
-```
-app/
-├── src/main/
-│   ├── java/com/local/aishell/
-│   │   ├── MainActivity.java           (WebView + lifecycle)
-│   │   ├── LlamaEngine.java            (JNI bindings)
-│   │   ├── LocalWSServer.java          (HTTP + WebSocket daemon)
-│   │   ├── PtyShellBridge.java         (PTY shell spawning)
-│   │   └── GeminiApiClient.java        (Cloud API fallback)
-│   ├── cpp/
-│   │   ├── CMakeLists.txt              (Build config)
-│   │   └── llama_bridge.cpp            (C++ JNI adapter)
-│   ├── assets/                         (WebGL/PWA assets)
-│   └── res/
-│       ├── layout/activity_main.xml
-│       └── values/strings.xml
-├── build.gradle                        (App build config)
-settings.gradle
-build.gradle                            (Root project)
-gradle.properties                       (Gradle settings)
-```
+## Important release notes
 
-## Configuration
-
-- **Port**: 8080 (WebSocket server)
-- **Model**: SmolLM2-135M-Instruct (quantized Q4_K_M)
-- **Min SDK**: 26 (Android 8.0+)
-- **Target SDK**: 34 (Android 14)
-- **ABI**: arm64-v8a only
-
-## API Keys
-
-Set Gemini API key via WebView bridge:
-```javascript
-NativeBridge.setApiKey('your-api-key');
-```
-
-## License
-
-See LICENSE file.
+The GGUF model and llama.cpp checkout are intentionally not committed to Git because of their size and licensing. The build pipeline must fetch and verify them before producing a release APK. Never commit a Gemini API key; keys are stored locally on-device and should be treated as sensitive.

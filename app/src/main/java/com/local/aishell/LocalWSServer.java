@@ -1,19 +1,20 @@
 package com.local.aishell;
 
 import android.content.Context;
-import fi.iki.elonen.NanoHTTPD;
-import fi.iki.elionen.NanoWSD;
-import fi.iki.elionen.NanoWSD.WebSocketFrame.CloseCode;
+import fi.iki.elonen.NanoWSD;
+import fi.iki.elonen.NanoWSD.WebSocketFrame.CloseCode;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 
+/** Serves the packaged UI and exposes a loopback-only WebSocket shell. */
 public class LocalWSServer extends NanoWSD {
     private final Context context;
 
     public LocalWSServer(Context context, int port) {
         super(port);
-        this.context = context;
+        this.context = context.getApplicationContext();
     }
 
     @Override
@@ -24,28 +25,42 @@ public class LocalWSServer extends NanoWSD {
     @Override
     protected Response serveHttp(IHTTPSession session) {
         String uri = session.getUri();
-        if (uri == null || uri.equals("/") || uri.isEmpty()) {
+        if (uri == null || uri.isEmpty() || "/".equals(uri)) {
             uri = "/index.html";
         }
         if (uri.startsWith("/")) {
             uri = uri.substring(1);
         }
 
+        // Do not allow an HTTP request to escape the APK assets directory.
+        if (uri.contains("..") || uri.contains("\\") || uri.startsWith("/")) {
+            return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/plain", "Forbidden");
+        }
+
         try {
-            InputStream is = context.getAssets().open(uri);
-            String mime = uri.endsWith(".html") ? "text/html" :
-                          uri.endsWith(".js") ? "application/javascript" :
-                          uri.endsWith(".css") ? "text/css" : "application/octet-stream";
-            return newChunkedResponse(Response.Status.OK, mime, is);
+            InputStream stream = context.getAssets().open(uri);
+            return newChunkedResponse(Response.Status.OK, mimeType(uri), stream);
         } catch (IOException e) {
-            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "File not found: " + uri);
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "File not found");
         }
     }
 
-    private static class ShellWebSocket extends WebSocket {
+    private static String mimeType(String path) {
+        String lower = path.toLowerCase(Locale.US);
+        if (lower.endsWith(".html")) return "text/html; charset=utf-8";
+        if (lower.endsWith(".js")) return "application/javascript; charset=utf-8";
+        if (lower.endsWith(".css")) return "text/css; charset=utf-8";
+        if (lower.endsWith(".json")) return "application/json; charset=utf-8";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        return "application/octet-stream";
+    }
+
+    private static final class ShellWebSocket extends WebSocket {
         private final PtyShellBridge pty = new PtyShellBridge();
 
-        public ShellWebSocket(IHTTPSession handshake) {
+        ShellWebSocket(IHTTPSession handshake) {
             super(handshake);
         }
 
@@ -54,7 +69,9 @@ public class LocalWSServer extends NanoWSD {
             pty.start(output -> {
                 try {
                     send(output);
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {
+                    pty.stop();
+                }
             });
         }
 
@@ -66,13 +83,11 @@ public class LocalWSServer extends NanoWSD {
         @Override
         protected void onMessage(WebSocketFrame message) {
             String payload = message.getTextPayload();
-            if (payload != null) {
-                pty.write(payload);
-            }
+            if (payload != null) pty.write(payload);
         }
 
         @Override
-        protected void onPong(WebSocketFrame pong) {}
+        protected void onPong(WebSocketFrame pong) { }
 
         @Override
         protected void onException(IOException exception) {
