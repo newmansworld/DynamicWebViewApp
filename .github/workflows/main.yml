@@ -12,8 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Repository (with submodules)
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 1
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -29,17 +32,33 @@ jobs:
 
     - name: Install NDK and CMake
       run: |
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1" "platforms;android-34"
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
+          "ndk;25.2.9519653" "cmake;3.22.1" "platforms;android-34"
+
+    - name: Cache llama.cpp build artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          app/.cxx
+          ~/.gradle/caches
+        key: llama-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/llama.cpp/.git/HEAD') }}
+        restore-keys: llama-${{ runner.os }}-
+
+    - name: Fetch Qwen model
+      run: |
+        mkdir -p app/src/main/assets
+        curl -L --fail --retry 3 -o app/src/main/assets/model.gguf \
+          "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf"
 
     - name: Grant Execute Permission for Gradle Wrapper
       run: chmod +x gradlew
 
-    - name: Build APK with Gradle
-      run: ./gradlew assembleRelease --no-daemon
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-    - name: Upload APK Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-release-apk
-        path: app/build/outputs/apk/release/*.apk
-        
+        name: app-debug-apk
+        path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
